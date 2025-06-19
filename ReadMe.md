@@ -1,21 +1,109 @@
-Receipt Processor Challenge
+# Receipt Processor Challenge
 
-I have designed a Spring Boot based web service to process retail receipts and calculate reward points based on specific rules. The application provides RESTful endpoints to submit receipts and retrieve the points awarded for them. All data is stored in-memory, with no external database required.
+A Spring Boot-based web service that processes retail receipts and calculates reward points based on specific business rules. The application exposes RESTful endpoints to submit receipts and retrieve the corresponding reward points. It uses PostgreSQL for persistent storage and is deployable as a containerized service using AWS Fargate.
 
-Application Flow
+## Features
 
-1. ReceiptProcessorApplication initializes the Spring context and exposes the API on port 8080.
-2. POST /receipts/process :- Accepts Receipt Json payload, validates the input using jakarta annotations, assigns unique UUID, stores the receipt in memory, applies business rules to calculate points, and finally returns the generates ID.
-3. GET /receipts/{id}/points :- Accepts the receipt id in the path and returns the previously calculated points for that receipt.
+- POST `/receipts/process`  
+  Accepts a receipt JSON payload, validates the fields, assigns a unique UUID, stores the receipt in PostgreSQL, calculates reward points, and returns the generated receipt ID.
 
-Build Instructions: 
+- GET `/receipts/{id}/points`  
+  Returns the points associated with a previously submitted receipt using its ID.
 
-1. Build Docker Image :- docker build -t receipt_processor_challenge:latest .
-2. Run Docker Container :- docker run -p 8080:8080 receipt_processor_challenge:latest
+## Tech Stack
 
-API will be available at:
+- Java 17  
+- Spring Boot 3.1.0  
+- PostgreSQL  
+- Docker  
+- AWS ECS Fargate  
+- AWS ECR  
+- Gradle 8.3  
+- Postman for testing
 
-http://localhost:8080
+## Sample Payloads
 
-Built with Java 17, Spring Boot 3.1.0, Gradle 8.3.
-Tested with Docker and Postman (screenshots included under /screenshots).
+### Submit Receipt (POST)
+
+**Endpoint:** `POST /receipts/process`  
+**Payload:**
+
+```json
+{
+  "retailer": "Target",
+  "purchaseDate": "2023-06-12",
+  "purchaseTime": "13:01",
+  "items": [
+    {
+      "shortDescription": "Pepsi - 12 pack",
+      "price": "5.99"
+    },
+    {
+      "shortDescription": "Eggs",
+      "price": "3.25"
+    }
+  ],
+  "total": "9.24"
+}
+```
+
+**Sample Response:**
+
+```json
+{
+  "id": "84e23acc-98fb-469d-b777-b75f099dfa51"
+}
+```
+
+### Get Points (GET)
+
+**Endpoint:** `GET /receipts/{id}/points`  
+**Example:**  
+`GET /receipts/84e23acc-98fb-469d-b777-b75f099dfa51/points`
+
+**Response:**
+
+```json
+{
+  "points": 67
+}
+```
+
+## Environment Variables
+
+The following environment variables must be set for the application to connect to the PostgreSQL database:
+
+| Key                      | Description                       | Example                                                   |
+|--------------------------|-----------------------------------|-----------------------------------------------------------|
+| SPRING_DATASOURCE_URL    | JDBC URL of the PostgreSQL DB     | jdbc:postgresql://your-db-host:5432/receipt_db            |
+| SPRING_DATASOURCE_USERNAME | PostgreSQL DB username         | postgres                                                  |
+| SPRING_DATASOURCE_PASSWORD | PostgreSQL DB password         | your_password_here                                        |
+
+These can be set in your local Docker run command or in the AWS ECS task definition under container environment variables.
+
+## Local Build & Run
+
+1. Build Docker Image  
+   ```bash
+   docker build -t receipt_processor_challenge:latest .
+   ```
+
+2. Run Container Locally  
+   ```bash
+   docker run -p 8080:8080 \
+     -e SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:5432/receipt_db \
+     -e SPRING_DATASOURCE_USERNAME=postgres \
+     -e SPRING_DATASOURCE_PASSWORD=your_password \
+     receipt_processor_challenge:latest
+   ```
+
+3. Test the API  
+   Open Postman or visit `http://localhost:8080`
+
+## AWS Deployment
+
+- Docker image is pushed to Amazon ECR
+- ECS Task Definition is created using this image
+- ECS Fargate service is configured to run the container
+- PostgreSQL is hosted using Amazon RDS
+- Security groups are configured to allow inbound traffic on ports 8080 (app) and 5432 (database)
