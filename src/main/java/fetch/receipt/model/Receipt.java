@@ -1,90 +1,73 @@
 package fetch.receipt.model;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
+import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+@Entity
+@Table(name = "receipts")
 public class Receipt {
 
-    @NotNull(message = "Retailer cannot be null")
-    @Pattern(regexp = "^[\\w\\s\\-&]+$", message = "Retailer name format is invalid")
+    @Id
+    @Column(name = "id", length = 36)
+    private String id;
+
+    @Column(name = "retailer", nullable = false)
     private String retailer;
 
-    @NotNull(message = "Purchase date cannot be null")
-    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Column(name = "purchase_date", nullable = false)
     private LocalDate purchaseDate;
 
-    @NotNull(message = "Purchase time cannot be null")
-    @JsonFormat(pattern = "HH:mm")
+    @Column(name = "purchase_time", nullable = false)
     private LocalTime purchaseTime;
 
-    @NotNull(message = "Items cannot be null")
-    @NotEmpty(message = "At least one item is required")
-    @Size(min = 1, message = "At least one item is required")
-    @Valid
+    @OneToMany(mappedBy = "receipt", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<Item> items;
 
-    @NotNull(message = "Total cannot be null")
-    @Pattern(regexp = "^\\d+\\.\\d{2}$", message = "Total must be in format 0.00")
-    private String total;
+    @Column(name = "total", nullable = false)
+    private String total;  // ← changed from BigDecimal to String
 
-    // Default constructor required for Jackson deserialization
-    public Receipt() {
-    }
+    @Column(name = "points")
+    private Long points;
 
-    // Constructor with all fields for easier testing
-    public Receipt(String retailer, LocalDate purchaseDate, LocalTime purchaseTime, List<Item> items, String total) {
+    public Receipt() {}
+
+    public Receipt(String id, String retailer, LocalDate purchaseDate, LocalTime purchaseTime, List<Item> items, String total) {
+        this.id = id;
         this.retailer = retailer;
         this.purchaseDate = purchaseDate;
         this.purchaseTime = purchaseTime;
-        this.items = items;
         this.total = total;
+        setItems(items);
     }
 
-    // Getters and Setters
-    public String getRetailer() {
-        return retailer;
-    }
-
-    public void setRetailer(String retailer) {
-        this.retailer = retailer;
-    }
-
-    public LocalDate getPurchaseDate() {
-        return purchaseDate;
-    }
-
-    public void setPurchaseDate(LocalDate purchaseDate) {
-        this.purchaseDate = purchaseDate;
-    }
-
-    public LocalTime getPurchaseTime() {
-        return purchaseTime;
-    }
-
-    public void setPurchaseTime(LocalTime purchaseTime) {
-        this.purchaseTime = purchaseTime;
-    }
-
-    public List<Item> getItems() {
-        return items;
-    }
-
+    // Bidirectional setter
     public void setItems(List<Item> items) {
         this.items = items;
+        if (items != null) {
+            items.forEach(item -> item.setReceipt(this));
+        }
     }
 
-    public String getTotal() {
-        return total;
-    }
+    // Getters and setters
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public void setTotal(String total) {
-        this.total = total;
-    }
+    public String getRetailer() { return retailer; }
+    public void setRetailer(String retailer) { this.retailer = retailer; }
+
+    public LocalDate getPurchaseDate() { return purchaseDate; }
+    public void setPurchaseDate(LocalDate purchaseDate) { this.purchaseDate = purchaseDate; }
+
+    public LocalTime getPurchaseTime() { return purchaseTime; }
+    public void setPurchaseTime(LocalTime purchaseTime) { this.purchaseTime = purchaseTime; }
+
+    public List<Item> getItems() { return items; }
+
+    public String getTotal() { return total; }
+    public void setTotal(String total) { this.total = total; }
+
+    public Long getPoints() { return points; }
+    public void setPoints(Long points) { this.points = points; }
 }

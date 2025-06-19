@@ -1,19 +1,24 @@
 package fetch.receipt.service;
 
+import fetch.receipt.dto.ReceiptDto;
 import fetch.receipt.exception.ReceiptNotFoundException;
 import fetch.receipt.model.Item;
 import fetch.receipt.model.Receipt;
 import fetch.receipt.repository.ReceiptRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-//Business logic to implement receipt processing
 @Service
+@Transactional
 public class ReceiptService {
 
     private final ReceiptRepository receiptRepository;
@@ -23,68 +28,78 @@ public class ReceiptService {
         this.receiptRepository = receiptRepository;
     }
 
-    public String processReceipt(Receipt receipt) {
-        // Generate a unique ID using UUID
+    public String processReceipt(ReceiptDto dto) {
         String id = UUID.randomUUID().toString();
 
-        // Save the receipt
-        receiptRepository.save(id, receipt);
+        // Convert DTO → Entity (note: price is stored as String now)
+        List<Item> items = dto.getItems().stream()
+                .map(i -> new Item(i.getShortDescription(), i.getPrice(), null))
+                .collect(Collectors.toList());
 
-        // Calculate and save points for the receipt
+        // Receipt.total is also String now
+        Receipt receipt = new Receipt(
+                id,
+                dto.getRetailer(),
+                LocalDate.parse(dto.getPurchaseDate()),
+                LocalTime.parse(dto.getPurchaseTime()),
+                items,
+                dto.getTotal()
+        );
+
         long points = calculatePoints(receipt);
-        receiptRepository.savePoints(id, points);
+        receipt.setPoints(points);
 
+        // Set bidirectional references
+        receipt.setItems(items);
+
+        receiptRepository.save(receipt);
         return id;
     }
-    public long getPoints(String id) {
-        // Check if receipt exists
-        if (!receiptRepository.findById(id).isPresent()) {
-            throw new ReceiptNotFoundException(id);
-        }
 
-        // Return the calculated points
-        return receiptRepository.getPoints(id).orElse(0L);
+    @Transactional(readOnly = true)
+    public long getPoints(String id) {
+        return receiptRepository.findById(id)
+                .map(Receipt::getPoints)
+                .orElseThrow(() -> new ReceiptNotFoundException(id));
+    }
+
+    @Transactional(readOnly = true)
+    public Receipt getReceiptById(String id) {
+        return receiptRepository.findById(id)
+                .orElseThrow(() -> new ReceiptNotFoundException(id));
     }
 
     private long calculatePoints(Receipt receipt) {
         long points = 0;
 
-        // Rule 1: One point per alphanumeric character in retailer name
         points += receipt.getRetailer().replaceAll("[^a-zA-Z0-9]", "").length();
 
-        // Convert total to BigDecimal for accurate calculations
-        BigDecimal totalValue = new BigDecimal(receipt.getTotal());
+        BigDecimal total = new BigDecimal(receipt.getTotal());
 
-        // Rule 2: 50 points if total ends in .00 (round dollar)
-        if (receipt.getTotal().endsWith(".00")) {
+        if (total.stripTrailingZeros().scale() <= 0) {
             points += 50;
         }
 
-        // Rule 3: 25 points if total is multiple of 0.25
-        if (totalValue.remainder(BigDecimal.valueOf(0.25)).compareTo(BigDecimal.ZERO) == 0) {
+        if (total.remainder(BigDecimal.valueOf(0.25)).compareTo(BigDecimal.ZERO) == 0) {
             points += 25;
         }
 
-        // Rule 4: 5 points for every 2 items
         points += 5 * (receipt.getItems().size() / 2);
 
-        // Rule 5: For items with description length % 3 == 0, add ceil(price * 0.2)
         for (Item item : receipt.getItems()) {
             String desc = item.getShortDescription().trim();
             if (desc.length() % 3 == 0) {
-                BigDecimal price = new BigDecimal(item.getPrice());
-                BigDecimal bonus = price.multiply(BigDecimal.valueOf(0.2))
+                BigDecimal bonus = new BigDecimal(item.getPrice())
+                        .multiply(BigDecimal.valueOf(0.2))
                         .setScale(0, RoundingMode.CEILING);
                 points += bonus.intValue();
             }
         }
 
-        // Rule 6: 6 points if purchase day is odd
         if (receipt.getPurchaseDate().getDayOfMonth() % 2 == 1) {
             points += 6;
         }
 
-        // Rule 7: 10 points if time is after 2:00pm and before 4:00pm
         LocalTime time = receipt.getPurchaseTime();
         if (time.isAfter(LocalTime.of(14, 0)) && time.isBefore(LocalTime.of(16, 0))) {
             points += 10;
@@ -92,5 +107,4 @@ public class ReceiptService {
 
         return points;
     }
-
 }

@@ -1,29 +1,39 @@
 package fetch.receipt.model;
 
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
+import jakarta.persistence.*;
 
+@Entity
+@Table(name = "items")
 public class Item {
 
-    @NotNull(message = "Short description cannot be null")
-    @Pattern(regexp = "^[\\w\\s\\-]+$", message = "Short description format is invalid")
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "short_description", nullable = false)
     private String shortDescription;
 
-    @NotNull(message = "Price cannot be null")
-    @Pattern(regexp = "^\\d+\\.\\d{2}$", message = "Price must be in format 0.00")
-    private String price;
+    @Column(name = "price", nullable = false)
+    private String price; // changed from BigDecimal to String
 
-    // Default constructor required for Jackson deserialization
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receipt_id", nullable = false)
+    private Receipt receipt;
+
     public Item() {
     }
 
-    // Constructor with all fields for easier testing
-    public Item(String shortDescription, String price) {
+    public Item(String shortDescription, String price, Receipt receipt) {
         this.shortDescription = shortDescription;
         this.price = price;
+        this.receipt = receipt;
     }
 
-    // Getters and Setters
+    // Getters and setters
+    public Long getId() {
+        return id;
+    }
+
     public String getShortDescription() {
         return shortDescription;
     }
@@ -38,5 +48,13 @@ public class Item {
 
     public void setPrice(String price) {
         this.price = price;
+    }
+
+    public Receipt getReceipt() {
+        return receipt;
+    }
+
+    public void setReceipt(Receipt receipt) {
+        this.receipt = receipt;
     }
 }
